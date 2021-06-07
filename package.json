@@ -1,0 +1,34 @@
+{
+  "name": "code",
+  "version": "0.1.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "@fitbit/sdk": "~5.0.2",
+    "@fitbit/sdk-cli": "^1.7.3"
+  },
+  "fitbit": {
+    "appType": "app",
+    "appDisplayName": "Fetcher",
+    "iconFile": "resources/icon.png",
+    "wipeColor": "#ffffff",
+    "requestedPermissions": [
+      "run_background",
+      "access_activity",
+      "access_heart_rate",
+      "access_user_profile",
+      "access_internet"
+    ],
+    "buildTargets": [
+      "atlas",
+      "vulcan"
+    ],
+    "i18n": {},
+    "defaultLanguage": "en-US",
+    "appUUID": "0cae6ee2-fcd7-4d74-8463-f3c3ac22f20c"
+  },
+  "scripts": {
+    "build": "fitbit-build",
+    "debug": "fitbit"
+  }
+}
