@@ -1,0 +1,7 @@
+.application-fill           { fill: #0080ff; }
+.foreground-fill            { fill: fb-white; }
+.background-fill            { fill: fb-black; }
+
+#recBtn #text {
+  text-buffer: "START RECORDING";
+}

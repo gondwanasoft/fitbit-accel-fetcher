@@ -1,3 +1,8 @@
 <svg>
-  <text id="heart" fill="#00ff80" font-size="200" x="50%" y="50%+71" text-anchor="middle" font-family="Colfax-Bold"/>
+  <text id="recTime" fill="#ffffff" font-size="50" x="50%" y="50" text-anchor="middle" text-length="8" font-family="Colfax-Bold">0</text>
+  <text id="status" fill="#0080ff" font-size="28" x="50%" y="90" text-anchor="middle" text-length="32" font-family="Colfax-Regular">Ready</text>
+  <text id="error" fill="#ff0000" font-size="28" x="50%" y="125" text-anchor="middle" text-length="32" font-family="Colfax-Regular" />
+  <use id="recBtn" href="#text-button" class="text-button primary application-fill" />
+  <use id="xferBtn" href="#text-button" class="text-button secondary application-fill" />
+  <!--<rect id="touch" width="100%" height="100%" pointer-events="visible" opacity="0" />-->
 </svg>

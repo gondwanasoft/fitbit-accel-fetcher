@@ -9,7 +9,7 @@
   },
   "fitbit": {
     "appType": "app",
-    "appDisplayName": "Fetcher",
+    "appDisplayName": "Accel Fetcher",
     "iconFile": "resources/icon.png",
     "wipeColor": "#ffffff",
     "requestedPermissions": [
