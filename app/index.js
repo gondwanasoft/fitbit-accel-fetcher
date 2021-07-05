@@ -29,18 +29,25 @@ let fileDescriptor
 let simAccelTimer
 let simTimestamp
 let isRecording = false, isTransferring = false
-let fileNumberRecording, fileNumberSending
+let fileNumberSending
 let recordsInFile, recordsRecorded
 let startTime
 let dateLastBatch
+let state = {
+  fileNumberRecording: undefined
+}
 
 me.appTimeoutEnabled = false
 //touchEl.onmousedown = onMouseDown
+restoreState()
 recBtnEl.addEventListener("click", onRecBtn)
 xferBtnEl.addEventListener("click", onXferBtn)
 accel.addEventListener("reading", onAccelReading)
 inbox.addEventListener("newfile", receiveFilesFromCompanion)
 receiveFilesFromCompanion()
+if (state.fileNumberRecording && fs.existsSync('1')) {
+  xferBtnEl.text = 'TRANSFER TO PHONE'
+}
 
 //*********************************************************************************** User input *****
 
@@ -81,10 +88,10 @@ function simAccelTick() {  // fake data
     }
   if ((recordsInFile += batchSize) >= recordsPerFile) { // start another file
     fs.closeSync(fileDescriptor)
-    fileDescriptor = fs.openSync(++fileNumberRecording, 'a')
+    fileDescriptor = fs.openSync(++state.fileNumberRecording, 'a')
     recordsRecorded += recordsInFile
     recordsInFile = 0
-    statusEl.text = 'Recording file '+fileNumberRecording
+    statusEl.text = 'Recording file '+state.fileNumberRecording
     //console.log('Started new file')
   }
   recTimeEl.text = Math.round((Date.now()-startTime)/1000)
@@ -114,11 +121,11 @@ function onAccelReading() {
       console.error("Can't write to file (out of storage space?)")
     }
   if ((recordsInFile += batchSize) >= recordsPerFile) {
-    console.log(`Closing file ${fileNumberRecording} (${recordsInFile} records)`)
+    console.log(`Closing file ${state.fileNumberRecording} (${recordsInFile} records)`)
     fs.closeSync(fileDescriptor)
-    fileDescriptor = fs.openSync(++fileNumberRecording, 'a')
+    fileDescriptor = fs.openSync(++state.fileNumberRecording, 'a')
     recordsInFile = 0
-    statusEl.text = 'Recording file ' + fileNumberRecording
+    statusEl.text = 'Recording file ' + state.fileNumberRecording
     //console.log('Started new file')
   }
   recTimeEl.text = Math.round((Date.now()-startTime)/1000)
@@ -131,11 +138,11 @@ function startRec() {
 
   dateLastBatch = simTimestamp = recordsInFile = recordsRecorded = 0
   recTimeEl.text = '0'
-  fileNumberRecording = 1
-  fileDescriptor = fs.openSync(fileNumberRecording, 'a')
+  state.fileNumberRecording = 1
+  fileDescriptor = fs.openSync(state.fileNumberRecording, 'a')
   errorEl.style.fill = '#ff0000'
   errorEl.text = ''
-  statusEl.text = 'Recording file ' + fileNumberRecording
+  statusEl.text = 'Recording file ' + state.fileNumberRecording
   accel.start()
   if (simAccelTimer) {clearTimeout(simAccelTimer); simAccelTimer = 0}
   console.log('Started.')
@@ -158,23 +165,27 @@ function stopRec() {
   fs.closeSync(fileDescriptor)
   accel.stop()
   if (simAccelTimer) {clearTimeout(simAccelTimer); simAccelTimer = 0}
-  console.log(`stopRec(): fileNumberRecording=${fileNumberRecording} recordsInFile=${recordsInFile}`)
-  if (!recordsInFile) fileNumberRecording--   // don't include a zero-length file
+  console.log(`stopRec(): fileNumberRecording=${state.fileNumberRecording} recordsInFile=${recordsInFile}`)
+  if (!recordsInFile) {   // don't include a zero-length file
+    console.log(`deleting zero-length file`)
+    fs.unlinkSync(state.fileNumberRecording)
+    state.fileNumberRecording--
+  }
   recordsRecorded += recordsInFile
   console.log('Stopped.')
-  statusEl.text = `Recorded ${fileNumberRecording} file(s)`
+  statusEl.text = `Recorded ${state.fileNumberRecording} file(s)`
   const size = recordsRecorded * bytesPerRecord / 1024
   errorEl.style.fill = '#0080ff'
   errorEl.text = `(${recordsRecorded} readings; ${Math.round(size)} kB)`
   display.poke()
   recBtnEl.text = 'START RECORDING'
-  xferBtnEl.text = 'TRANSFER TO PHONE'
+  if (state.fileNumberRecording) xferBtnEl.text = 'TRANSFER TO PHONE'
 }
 
 //********************************************************************************** Transfer data *****
 
 function startTransfer() {
-  if (!fileNumberRecording) return
+  if (!state.fileNumberRecording) return
 
   isTransferring = true
   errorEl.style.fill = '#ff0000'
@@ -207,7 +218,7 @@ function sendFile(fileName) {
   outbox
     .enqueueFile("/private/data/"+fileName)
   .then(ft => {
-    statusEl.text = operation + 'ending file ' + fileName + ' of ' + fileNumberRecording + '...'
+    statusEl.text = operation + 'ending file ' + fileName + ' of ' + state.fileNumberRecording + '...'
     display.poke()
     console.log(`Transfer queued.`);
   })
@@ -281,7 +292,7 @@ function receiveFilesFromCompanion() {
 
 function sendNextFile() {
   errorEl.text = ''
-  if (++fileNumberSending > fileNumberRecording) {
+  if (++fileNumberSending > state.fileNumberRecording) {
     console.log('All files sent okay; waiting for server to acknowledge')
     statusEl.text = 'All data sent; wait...'
     display.poke()
@@ -298,3 +309,25 @@ function resendFile(response) {
   console.warn(`Resending ${response.fileName}`)
   sendFile(response.fileName)
 }
+
+//#region **************************************************************************************************** State *****
+
+me.onunload = () => {
+  saveState()
+}
+
+function saveState() {
+  fs.writeFileSync("state.cbor", state, "cbor")
+}
+
+function restoreState() {
+  // Returns true if state restored.
+  let newState;
+  try {
+    newState = fs.readFileSync("state.cbor", "cbor");
+    state = newState;
+    return true
+  } catch(err) {   // leave state as is
+  }
+}
+//#endregion
