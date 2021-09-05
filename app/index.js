@@ -310,8 +310,6 @@ function resendFile(response) {
   sendFile(response.fileName)
 }
 
-//#region **************************************************************************************************** State *****
-
 me.onunload = () => {
   saveState()
 }
@@ -330,4 +328,3 @@ function restoreState() {
   } catch(err) {   // leave state as is
   }
 }
-//#endregion

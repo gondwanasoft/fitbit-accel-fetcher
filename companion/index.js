@@ -120,8 +120,7 @@ function sendToServer(data, fileName, asJSON) {
     console.log(`sendToServer(): fileName=${fileName} fetch error: ${err}. Ensure server is running.`)
     const status = 2
     settingsStorage.setItem('status', statusMsg[status])
-    sendToWatch(fileName, status)       // fetch() error  // TODO 8 reinstate
-    //sendToWatch(fileName, 200)    // TODO 8 del: testing
+    sendToWatch(fileName, status)
   });
 
   console.log(`sendToServer() sent ${fileName}`)
