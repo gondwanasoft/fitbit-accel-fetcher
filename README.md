@@ -1,5 +1,12 @@
-# fitbit-accel-fetcher
-This is a Fitbit OS demo for transferring watch accelerometer data via companion to an external web server.
+# fitbit-iothub
+This is a Fitbit OS demo for transferring watch accelerometer, gyroscope, and presence data via companion to Azure IoT Hub.   The architecture is store and forward where sensor readings are stored on the device and periodically sent to the Fitbit companion.  The companion sends this telemetry to an Azure Function via HTTPS and identifies the appropriate IoT Hub device ID along with the telemetry.   The function then sends this data to IoT Hub, which is the generic ingestion point.   
+
+
+The reasoning behind this architecture is that Fitbit only allows HTTP/S communication externally from the companion.  There are other devices such as Android WearOS devices that can use the Azure IoT SDK and send telemetry directly to IoT Hub via MQTT or AMQP.  IoT Hub represents the ingestion point for all devices.  Analytics are then performed by sending data from IoT Hub to Azure Stream Analytics which then provides multiple outputs for downstream processing such as Azure Data Lake Gen 2, Event Grid and Power BI for visualization.
+
+The FitBit device and companion app are based on the wonderful sample created by [gondwansoft] and this repository is forked from [android-fitbit-fetcher].   That sample has been expanded and moved under the fitbit directory.
+
+The Azure function that interacts with IoT Hub is found under the azure directory.
 
 Features
 -
@@ -9,41 +16,7 @@ Data is saved and transferred using multiple small files, to provide greater fee
 
 Failed transfers are automatically retried.
 
-The companion converts the binary data into plain text in CSV format, so it can be read in a text editor or imported into a spreadsheet.
+The companion converts the binary data into plain text in JSON format, so it can be sent to IoT Hub in accordance with its device template that identifies properties and telemetry.
 
 The settings screen displays the companion's status.
 
-By default, this app uses [android-fitbit-fetcher](https://github.com/gondwanasoft/android-fitbit-fetcher) as the server that receives the data. However, you could adapt it to use any other suitable server available to you.
-
-The approach demonstrated in these repositories could be adapted to transfer other sensor data (such as heart rate).
-
-More information is available in the [server's readme](https://github.com/gondwanasoft/android-fitbit-fetcher/blob/master/README.md).
-
-Usage (assuming use of [android-fitbit-fetcher](https://github.com/gondwanasoft/android-fitbit-fetcher))
--
-Build and install this repo to your watch and companion device (*eg*, phone).
-
-Build and install the server on your companion device (*eg*, phone).
-
-Start the server app.
-
-Start the watch app ('Accel Fetcher').
-
-Record some accelerometer data on your watch.
-
-Transfer accelerometer data from watch to phone.
-
-Await transfer to finish (see watch app).
-
-Select `GET DATA` on server app, and select a file into which the data will be copied.
-
-Use a file manager on your phone to verify that the data has been received.
-
-Caveats
--
-
-This app is not intended to be used as is. Its purpose is to demonstrate some techniques that could be applied in other applications.
-
-This has not been tested using any server other than [android-fitbit-fetcher](https://github.com/gondwanasoft/android-fitbit-fetcher).
-
-No support is provided.
