@@ -5,7 +5,7 @@ import { localStorage } from "local-storage"
 import { settingsStorage } from "settings"
 import { ACCEL_SCALAR, statusMsg, valuesPerRecord } from '../common/common.js'
 
-const httpURL = 'http://127.0.0.1:3000'
+const httpURL = 'http://localhost:7071/api/SendTelemetry'
 
 let responseTimeoutTimer
 let timestampPrev = -1, timestampMSB = 0

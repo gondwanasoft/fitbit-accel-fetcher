@@ -107,7 +107,7 @@ dist
 .zip
 build/
 *.docx
-.vscode/
+
 Documentation/
 
 # Backup

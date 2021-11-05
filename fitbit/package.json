@@ -1,6 +1,6 @@
 {
-  "name": "code",
-  "version": "0.1.0",
+  "name": "fitbitiot",
+  "version": "0.2.0",
   "private": true,
   "license": "UNLICENSED",
   "devDependencies": {
@@ -9,7 +9,7 @@
   },
   "fitbit": {
     "appType": "app",
-    "appDisplayName": "Accel Fetcher",
+    "appDisplayName": "FitBit Azure IoT",
     "iconFile": "resources/icon.png",
     "wipeColor": "#ffffff",
     "requestedPermissions": [
