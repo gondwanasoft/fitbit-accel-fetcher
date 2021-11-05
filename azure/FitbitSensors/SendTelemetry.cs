@@ -54,6 +54,8 @@ namespace FitbitIoT
 
             TransportType transportType = TransportType.Mqtt;
             string connectionString = Environment.GetEnvironmentVariable("IoTHubConnection");
+            connectionString += $";DeviceId={telemetry.deviceID};";
+
             DeviceClient deviceClient;
 
             deviceClient = DeviceClient.CreateFromConnectionString(connectionString, transportType);
@@ -64,7 +66,6 @@ namespace FitbitIoT
 
             // Send the telemetry message
             await deviceClient.SendEventAsync(message);
-
             await deviceClient.DisposeAsync();  
 
             return telemetry.sensors.GetLength(0);
