@@ -3,12 +3,13 @@ import { me as companion } from "companion"
 import { inbox, outbox } from "file-transfer"
 import { localStorage } from "local-storage"
 import { settingsStorage } from "settings"
-import { ACCEL_SCALAR, statusMsg, valuesPerRecord } from '../common/common.js'
+import { ACCEL_SCALAR, statusMsg, valuesPerRecord, headerLength } from '../common/common.js'
 
 const httpURL = 'http://127.0.0.1:3000'
+const headerBufferLength = headerLength / 2   // buffer is 16-bit array
 
 let responseTimeoutTimer
-let timestampPrev = -1, timestampMSB = 0
+let fileNbrPrev
 
 async function receiveFilesFromWatch() {
   console.log('receiveFilesFromWatch()')
@@ -23,8 +24,7 @@ async function receiveFilesFromWatch() {
 
 async function receiveDataFromWatch(file) {
   if (file.name === '1') { // start of new sequence of files; reset timestamp variables
-    timestampPrev = -1
-    timestampMSB = 0
+    fileNbrPrev = 0
   }
 
   //const data = await file.text()
@@ -34,34 +34,35 @@ async function receiveDataFromWatch(file) {
   // We could try to save the data using the Storage API.
 
   // Unpack the binary data here, so we don't have to deal with binary data in the request on the server
+  const headerBufferView = new Uint32Array(data)
+  let timestamp = headerBufferView[0]
   const dataBufferView = new Int16Array(data)
-  const recordCount = dataBufferView.length / valuesPerRecord   // four values per record: time, x, y, z
-  console.log(`Got file ${file.name}; contents: ${data.byteLength} bytes = ${dataBufferView.length} elements = ${recordCount} records;  timestampPrev=${timestampPrev} timestampMSB=${timestampMSB}`)
+  const recordCount = (dataBufferView.length - headerBufferLength) / valuesPerRecord   // for accelerometer, four values per record: time, x, y, z
+
+  console.log(`Got file ${file.name}; contents: ${data.byteLength} bytes = ${dataBufferView.length} elements = ${recordCount} accel records;  timestamp = ${timestamp}`)
   settingsStorage.setItem('fileNbr', file.name)
-  let elementIndex = 0
+
+  const fileNbr = Number(file.name)
+  if (fileNbr !== fileNbrPrev + 1) console.log(`File received out of sequence: prev was ${fileNbrPrev}; got ${fileNbr}`)
+  fileNbrPrev = fileNbr
+
+  let elementIndex = headerBufferLength    // index into dataBufferView
   let record
   let content = ''  // the body (content) to be sent in the HTTP request
-  let timestamp
+  let timestampDiff
   for (let recordIndex = 0; recordIndex < recordCount; recordIndex++) {
     //console.log(`${recordIndex} ${dataBufferView[elementIndex]}`)
-    timestamp = dataBufferView[elementIndex++] + timestampMSB
-    if (timestamp < timestampPrev) { // timestamp rolled around; there can be duplicates because precision seems to be 64 msec
-      timestamp += 0x8000
-      timestampMSB += 0x8000
-      //console.log(`  ts rolled: ts=${timestamp} timestampMSB=${timestampMSB}`)
-    }
-    timestampPrev = timestamp
-
+    timestampDiff = dataBufferView[elementIndex++]  // difference between this timestamp and previous timestamp
+    timestamp += timestampDiff
     record = `${timestamp},${dataBufferView[elementIndex++]/ACCEL_SCALAR},${dataBufferView[elementIndex++]/ACCEL_SCALAR},${dataBufferView[elementIndex++]/ACCEL_SCALAR}\r\n`
     content += record
   }
-  //console.log(`content=${content}`)
+  //console.log(`content:\n${content}`)
 
   sendToServer(content, file.name)
 
   // Save local variables in case companion is unloaded before next file is received:
-  localStorage.setItem('timestampPrev', timestampPrev)
-  localStorage.setItem('timestampMSB', timestampMSB)
+  localStorage.setItem('fileNbrPrev', fileNbrPrev)
 }
 
 async function receiveStatusFromWatch(file) {
@@ -74,20 +75,18 @@ async function receiveStatusFromWatch(file) {
 }
 
 ;(function() {
-  // Extract persistent global variables from localStorage:
-  timestampPrev = localStorage.getItem('timestampPrev')
-  if (timestampPrev == null) timestampPrev = -1; else timestampPrev = Number(timestampPrev)
-  timestampMSB = localStorage.getItem('timestampMSB')
-  if (timestampMSB == null) timestampMSB = 0; else timestampMSB = Number(timestampMSB)
-  //console.log(`timestampPrev=${timestampPrev} ${timestampMSB}`)
+  companion.wakeInterval = 300000   // encourage companion to wake every 5 minutes
 
-  companion.wakeInterval = 300000
+  // Extract persistent global variables from localStorage:
+  fileNbrPrev = localStorage.getItem('fileNbrPrev')
+  if (fileNbrPrev == null) fileNbrPrev = 0; else fileNbrPrev = Number(fileNbrPrev)
 
   inbox.addEventListener("newfile", receiveFilesFromWatch)
   receiveFilesFromWatch()
 })()
 
 function sendToServer(data, fileName, asJSON) {
+  // fileName can be null if sending a status message.
   console.log(`sendToServer() fileName=${fileName} asJSON=${asJSON}`)
   const headers = {}
   if (fileName) headers.FileName = fileName
@@ -98,30 +97,31 @@ function sendToServer(data, fileName, asJSON) {
 
   // timeout in case of no exception or timely response
   responseTimeoutTimer = setTimeout(() => {
-    responseTimeoutTimer = 0
+    responseTimeoutTimer = undefined
     console.log(`onResponseTimeout()`)
-    const status = 1
-    settingsStorage.setItem('status', statusMsg[status])
-    sendToWatch(fileName, status)   // server response timeout
+    sendToWatch(fileName, 1, true)   // server response timeout
   }, 5000);
 
   fetch(httpURL, fetchInit)
-  .then(function(response) {
-    if (responseTimeoutTimer) {clearTimeout(responseTimeoutTimer); responseTimeoutTimer = 0}
-    sendToWatch(fileName, response.status)
-    if (response.ok) {
-      response.text().then(text => serverResponseOk(fileName, text))
-    } else {
-      response.text().then(text => serverResponseError(response.status, text))
-    }
-  })
-  .catch(function(err) {
-    if (responseTimeoutTimer) {clearTimeout(responseTimeoutTimer); responseTimeoutTimer = 0}
-    console.log(`sendToServer(): fileName=${fileName} fetch error: ${err}. Ensure server is running.`)
-    const status = 2
-    settingsStorage.setItem('status', statusMsg[status])
-    sendToWatch(fileName, status)
-  });
+    .then(function(response) {    // promise fulfilled (although server response may not be Ok)
+      console.log(`sendToServer() fetch fulfilled: fileName=${fileName}; ok=${response.ok}; status=${response.status}; sText=${response.statusText}`)
+      if (responseTimeoutTimer !== undefined) {clearTimeout(responseTimeoutTimer); responseTimeoutTimer = undefined}
+      sendToWatch(fileName, response.status)
+      if (response.ok) {
+        serverResponseOk(fileName, response.statusText)
+      } else {
+        serverResponseError(response.status, response.statusText)
+      }
+    }, function(reason) {       // promise rejected (server didn't receive file correctly, or no server because running in simulator)
+      console.error(`sendToServer() fetch rejected: ${reason}; fileName=${fileName}. Ensure server is running.`)
+      if (responseTimeoutTimer !== undefined) {clearTimeout(responseTimeoutTimer); responseTimeoutTimer = undefined}
+      sendToWatch(fileName, 3, true)    // TODO 8 should be 3; set to 200 to allow device and companion testing in sim (ie, without android)
+    })
+    .catch(function(err) {    // usually because server isn't running
+      console.error(`sendToServer() fetch catch: fileName=${fileName}; error: ${err}. Ensure server is running.`)
+      if (responseTimeoutTimer) {clearTimeout(responseTimeoutTimer); responseTimeoutTimer = undefined}
+      sendToWatch(fileName, 2, true)
+    })
 
   console.log(`sendToServer() sent ${fileName}`)
 }
@@ -133,11 +133,13 @@ function serverResponseOk(fileName, text) {
 }
 
 function serverResponseError(status, text) {
- console.log(`serverResponseError(): status=${status} text=${text}`)
+ console.error(`serverResponseError(): status=${status} text=${text}`)
  settingsStorage.setItem('status', statusMsg[status])
 }
 
-function sendToWatch(fileName, status) {
+function sendToWatch(fileName, status, updateSettings) {
+  if (updateSettings) settingsStorage.setItem('status', statusMsg[status])
+
   outbox.enqueue('response-'+Date.now(), encode({fileName:fileName, status:status}))
   .then((ft) => {
     console.log(`Transfer of ${ft.name} successfully queued.`);

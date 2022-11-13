@@ -104,6 +104,7 @@ dist
 .tern-port
 
 # Custom
+package-lock.json
 .zip
 build/
 *.docx

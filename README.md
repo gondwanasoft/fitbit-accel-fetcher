@@ -39,8 +39,23 @@ Select `GET DATA` on server app, and select a file into which the data will be c
 
 Use a file manager on your phone to verify that the data has been received.
 
+Change Log
+-
+Nov 2022:
+
+* Changed method of reconstructing filestamps from 16-bit values. The new method should be robust against files being received out of sequence, or being received more than once.
+* Caught errors that seem to correspond to incompletely received files on the server (which resulted in NULs). Such files are now resent.
+
 Caveats
 -
+
+The companion component will sometimes be unloaded even while the device component is still running. Receiving a file should wake it, but sometimes it doesn't. If the watch doesn't progress after about a minute, close the app and restart it. This should restart the companion. If it doesn't, display the Fitbit mobile app on your phone and try again. You'll need to redisplay the server app after the companion starts. Connecting the companion device (phone) to power seems to reduce the likelihood of unwanted unloading.
+
+Fitbit OS sometimes stops processsing file transfers from watch to companion. To fix this, close the app on the watch and restart it. Any previously-recorded data on the watch will still be there, so pressing `TRANSFER TO PHONE` should restart the process. (Previously-recorded files are only deleted when `START RECORDING` is pressed.)
+
+Timestamp values will not increase at exactly the amount requested, for two reasons: the Fitbit API seems to round to the nearest 10 ms, and there can be a few ms variations due (presumably) to irregular sampling.
+
+Very occasionally, you may see timestamps that jump ahead or behind by unexpected amounts. This seems to originate from the accelerometer batch readings themselves. Often, such errors seem to occur in pairs or groups, with the sum of the errors adding to about 0. Adding or subtracting a correction factor to the errant timestamps in the group should fix the problem. This needs to be done in whatever app is used to process the received data; it is not done in this app or the server.
 
 This app is not intended to be used as is. Its purpose is to demonstrate some techniques that could be applied in other applications.
 
